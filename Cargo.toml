@@ -1,0 +1,17 @@
+[package]
+name = "openmls_react_native_poc"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "openmls_react_native_poc"
+crate-type = ["staticlib"]
+
+[dependencies]
+openmls = { git = "https://github.com/openmls/openmls.git", branch = "main" }
+openmls_traits = { git = "https://github.com/openmls/openmls.git", branch = "main" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls.git", branch = "main" }
+openmls_memory_storage = { git = "https://github.com/openmls/openmls.git", branch = "main", features = [
+    "persistence",
+] }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls.git", branch = "main" }
