@@ -40,10 +40,18 @@ functions in this library related to MLS
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 
+
 fn get_provider() -> OpenMlsRustPersistentCrypto {
     let mut provider = OpenMlsRustPersistentCrypto::default();
     provider.init();
     return provider;
+}
+
+
+#[uniffi::export]
+fn mls_init(key_store_directory: String) {
+    let mut provider = OpenMlsRustPersistentCrypto::default();
+    provider.set_key_store_file_path(&key_store_directory);
 }
 
 #[uniffi::export]
