@@ -3,6 +3,7 @@
 #clear the old build
 rm -rf bindings
 rm -rf ios
+rm -rf target
 
 # Build the dylib
 cargo build
@@ -22,16 +23,17 @@ done
 # Rename *.modulemap to module.modulemap
 mv ./bindings/openmls_react_native_pocFFI.modulemap ./bindings/module.modulemap
 
-# Move the Swift file to the project
+mkdir ios
 
-mv ./bindings/mobile.swift ./ios/TodoList/Mobile.swift
+# Move the Swift file to the project
+mv ./bindings/openmls_react_native_poc.swift ./ios/OpenMLSReactNativePOC.swift
 
 # Recreate XCFramework
-rm -rf "ios/Mobile.xcframework"
+rm -rf "ios/OpenMLSReactNativePOC.xcframework"
 xcodebuild -create-xcframework \
-        -library ./target/aarch64-apple-ios-sim/release/libmobile.a -headers ./bindings \
-        -library ./target/aarch64-apple-ios/release/libmobile.a -headers ./bindings \
-        -output "ios/Mobile.xcframework"
+        -library ./target/aarch64-apple-ios-sim/release/libopenmls_react_native_poc.a -headers ./bindings \
+        -library ./target/aarch64-apple-ios/release/libopenmls_react_native_poc.a -headers ./bindings \
+        -output "ios/OpenMLSReactNativePOC.xcframework"
 
 # Cleanup
 rm -rf bindings
