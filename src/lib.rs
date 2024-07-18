@@ -47,7 +47,7 @@ fn get_provider() -> OpenMlsRustPersistentCrypto {
 }
 
 #[uniffi::export]
-fn register_user(user_id: &str) -> String {
+fn mls_register_user(user_id: &str) -> String {
     let provider = get_provider();
 
     let (credential_with_key,
@@ -74,7 +74,7 @@ fn register_user(user_id: &str) -> String {
     return serialized;
 }
 #[uniffi::export]
-fn create_group(group_id: &str, registered_user_data_json_str: &str) -> String {
+fn mls_create_group(group_id: &str, registered_user_data_json_str: &str) -> String {
     let provider = get_provider();
     let registered_user_data: RegisteredUserData = from_str(&registered_user_data_json_str).expect("unable to convert string to RegisteredUserData");
 
@@ -93,7 +93,7 @@ fn create_group(group_id: &str, registered_user_data_json_str: &str) -> String {
 }
 
 #[uniffi::export]
-fn invite_member(registered_user_data_json_str: &str, member_key_package_json_str: &str, mls_group_json_str: &str) -> String {
+fn mls_invite_member(registered_user_data_json_str: &str, member_key_package_json_str: &str, mls_group_json_str: &str) -> String {
     let provider = get_provider();
     let registered_user_data: RegisteredUserData = from_str(&registered_user_data_json_str).expect("unable to convert string to RegisteredUserData");
     let member_key_package: KeyPackage = from_str(&member_key_package_json_str).expect("unable to convert string to KeyPackage");
@@ -117,7 +117,7 @@ fn invite_member(registered_user_data_json_str: &str, member_key_package_json_st
 }
 
 #[uniffi::export]
-fn create_group_from_welcome(serialized_welcome_message_json_str: &str) -> String {
+fn mls_create_group_from_welcome(serialized_welcome_message_json_str: &str) -> String {
     let provider = get_provider();
 
     let serialized_welcome: Vec<u8> = from_str(serialized_welcome_message_json_str).expect("unable to convert serialized_welcome Vec<u8> to string");
@@ -148,7 +148,7 @@ fn create_group_from_welcome(serialized_welcome_message_json_str: &str) -> Strin
 }
 
 #[uniffi::export]
-fn create_application_message(registered_user_data_json_str: &str, mls_group_json_str: &str, message: &str) -> String {
+fn mls_create_application_message(registered_user_data_json_str: &str, mls_group_json_str: &str, message: &str) -> String {
     let provider = get_provider();
 
     let registered_user_data: RegisteredUserData = from_str(&registered_user_data_json_str).expect("unable to convert string to RegisteredUserData");
@@ -162,7 +162,7 @@ fn create_application_message(registered_user_data_json_str: &str, mls_group_jso
     return serialized;
 }
 #[uniffi::export]
-fn process_application_message(mls_group_json_str: &str, serialized_application_message_json_str: &str) -> String {
+fn mls_process_application_message(mls_group_json_str: &str, serialized_application_message_json_str: &str) -> String {
     let provider = get_provider();
 
     let serialized_application_message: Vec<u8> = from_str(serialized_application_message_json_str).expect("unable to convert serialized_application_message Vec<u8> to string");
