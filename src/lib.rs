@@ -195,6 +195,38 @@ fn mls_process_application_message(mls_group_json_str: &str, serialized_applicat
     }
 }
 
+#[uniffi::export]
+fn mls_process_commit_message(mls_group_json_str: &str, serialized_commit_message_json_str: &str) -> String {
+    let provider = get_provider();
+
+    let serialized_commit_message: Vec<u8> = from_str(serialized_commit_message_json_str).expect("unable to convert serialized_commit_message Vec<u8> to string");
+    let mut mls_group: MlsGroup = from_str(&mls_group_json_str).expect("unable to convert string to MLSGroup");
+
+
+    let mls_message_in =
+        MlsMessageIn::tls_deserialize_exact(serialized_commit_message).expect("could not deserialize MLSMessageIn message.");
+
+    let protocol_message: ProtocolMessage = mls_message_in.try_into_protocol_message().expect("unable to convert to protocol message.");
+    let processed_message = mls_group
+        .process_message(&provider, protocol_message)
+        .expect("could not process message.");
+
+
+    if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+        processed_message.into_content()
+    {
+        // Check the message
+        // Merge staged commit
+        mls_group
+            .merge_staged_commit(&provider, *staged_commit)
+            .expect("Error merging staged commit.");
+        let serialized = serde_json::to_string(&mls_group).expect("unable to convert MLSGroup to string");
+        return serialized;
+    } else {
+        panic!("Not an commit message")
+    }
+}
+
 
 fn run_open_mls() {
     let provider_alice: &OpenMlsRustPersistentCrypto = &OpenMlsRustPersistentCrypto::default();
@@ -316,6 +348,7 @@ fn run_open_mls() {
         panic!("Not an application message")
     }
 
+    /*-------------Invitation for 3rd member--------------*/
 
     //bob invite charlie to group
     let charlie_key_package = charlie_key_package_bundle.key_package().clone();
@@ -415,8 +448,6 @@ fn run_open_mls() {
     } else {
         panic!("Not an application message")
     }
-
-
 }
 
 #[cfg(test)]
