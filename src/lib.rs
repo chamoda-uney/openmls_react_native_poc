@@ -40,7 +40,6 @@ functions in this library related to MLS
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 
-
 fn get_provider() -> OpenMlsRustPersistentCrypto {
     let mut provider = OpenMlsRustPersistentCrypto::default();
     provider.init();
@@ -197,10 +196,12 @@ fn mls_process_application_message(mls_group_json_str: &str, serialized_applicat
 }
 
 
-fn run_open_mls() -> String {
+fn run_open_mls() {
     let provider_alice: &OpenMlsRustPersistentCrypto = &OpenMlsRustPersistentCrypto::default();
 
     let provider_bob: &OpenMlsRustPersistentCrypto = &OpenMlsRustPersistentCrypto::default();
+
+    let provider_charlie: &OpenMlsRustPersistentCrypto = &OpenMlsRustPersistentCrypto::default();
 
     // Alice credential
     let (alice_credential_with_key,
@@ -216,6 +217,13 @@ fn run_open_mls() -> String {
         CIPHERSUITE,
     );
 
+    //Charlie credential
+    let (charlie_credential_with_key,
+        charlie_signer) = generate_credential(
+        "Charlie".into(),
+        CIPHERSUITE,
+    );
+
     //alice key package bundle
     //let alice_key_package_bundle = generate_key_package(CIPHERSUITE, backend, &alice_signer, alice_credential_with_key);
 
@@ -224,6 +232,12 @@ fn run_open_mls() -> String {
                                                       provider_bob,
                                                       &bob_signer,
                                                       bob_credential_with_key);
+
+    //charlie key package bundle
+    let charlie_key_package_bundle = generate_key_package(CIPHERSUITE,
+                                                          provider_charlie,
+                                                          &charlie_signer,
+                                                          charlie_credential_with_key);
 
 
     //alice create the group
@@ -297,10 +311,112 @@ fn run_open_mls() -> String {
         processed_message.into_content()
     {
         // Check the message
-        return bytes_to_string(application_message.into_bytes());
+        assert_eq!(bytes_to_string(application_message.into_bytes()), "Hi Bob. How are you!. I'm Alice...");
     } else {
         panic!("Not an application message")
     }
+
+
+    //bob invite charlie to group
+    let charlie_key_package = charlie_key_package_bundle.key_package().clone();
+    let (mls_message_out_for_other_group_members, welcome_out_for_charlie, _) = bob_group.add_members(provider_bob,
+                                                                                                      &bob_signer,
+                                                                                                      &[charlie_key_package]).expect("Error adding member[charlie] to group");
+
+    //merge pending commit [bob group]
+    bob_group.merge_pending_commit(provider_bob).expect("error merging pending commit");
+
+
+    //alice inspect the new commit message (charlie added commit) and merge the commit
+    let serialized_commit_message = mls_message_out_for_other_group_members.to_bytes().expect("unable to serialize commit message");
+    let mls_commit_message_in =
+        MlsMessageIn::tls_deserialize_exact(serialized_commit_message).expect("could not deserialize message.");
+    let protocol_commit_message: ProtocolMessage = mls_commit_message_in.try_into_protocol_message().expect("unable to convert to protocol message.");
+    let processed_commit_message = alice_group
+        .process_message(provider_alice, protocol_commit_message)
+        .expect("could not process message.");
+    if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+        processed_commit_message.into_content()
+    {
+        // Merge staged commit
+        alice_group
+            .merge_staged_commit(provider_alice, *staged_commit)
+            .expect("Error merging staged commit.");
+    }
+
+
+    //charlie join the group using welcome
+    let serialized_welcome_for_charlie = welcome_out_for_charlie.tls_serialize_detached().expect("error serializing");
+
+    // bob can now de-serialize the message as an [`MlsMessageIn`] ...
+    let mls_message_in_for_charlie = MlsMessageIn::tls_deserialize(&mut serialized_welcome_for_charlie.as_slice())
+        .expect("An unexpected error occurred.");
+
+    // ... and inspect the message.
+    let welcome_of_charlie = match mls_message_in_for_charlie.extract() {
+        MlsMessageBodyIn::Welcome(welcome) => welcome,
+        // We know it's a welcome message, so we ignore all other cases.
+        _ => unreachable!("Unexpected message type."),
+    };
+
+    //charlie now can join the group
+    let group_config_join_charlie = MlsGroupJoinConfig::builder()
+        .use_ratchet_tree_extension(true)
+        .build();
+    let mut charlie_group = StagedWelcome::new_from_welcome(
+        provider_charlie,
+        &group_config_join_charlie,
+        welcome_of_charlie,
+        None,
+    )
+        .expect("failed to create staged join [charlie]").into_group(provider_charlie)
+        .expect("failed to create MLSGroup [charlie] by welcome");
+
+    /*-------------Group Established for Charlie [Bob, and Alice too]--------------*/
+
+    //bob create message:
+    let bob_message = b"Hi Group. How are you all!. I added Charlie to our group...";
+    let bob_mls_message_out = bob_group
+        .create_message(provider_bob, &bob_signer, bob_message)
+        .expect("error creating application message for group");
+
+    //other group members access the message
+    //Group serializes the message
+    let serialized_group_application_message = bob_mls_message_out.to_bytes().expect("unable to serialize application message");
+    let group_mls_message_in =
+        MlsMessageIn::tls_deserialize_exact(serialized_group_application_message).expect("could not deserialize message.");
+
+    let group_protocol_message: ProtocolMessage = group_mls_message_in.try_into_protocol_message().expect("unable to convert to protocol message.");
+
+
+    //alice process the message
+    let processed_application_message_alice = alice_group
+        .process_message(provider_alice, group_protocol_message.clone())
+        .expect("could not process message.");
+    if let ProcessedMessageContent::ApplicationMessage(application_message) =
+        processed_application_message_alice.into_content()
+    {
+        // Check the message
+        assert_eq!(bytes_to_string(application_message.into_bytes()), "Hi Group. How are you all!. I added Charlie to our group...");
+    } else {
+        panic!("Not an application message")
+    }
+
+
+    //charlie process message
+    let processed_application_message_charlie = charlie_group
+        .process_message(provider_charlie, group_protocol_message.clone())
+        .expect("could not process message.");
+    if let ProcessedMessageContent::ApplicationMessage(application_message) =
+        processed_application_message_charlie.into_content()
+    {
+        // Check the message
+        assert_eq!(bytes_to_string(application_message.into_bytes()), "Hi Group. How are you all!. I added Charlie to our group...");
+    } else {
+        panic!("Not an application message")
+    }
+
+
 }
 
 #[cfg(test)]
@@ -308,7 +424,7 @@ mod tests {
     use crate::{run_open_mls};
     #[test]
     fn open_mls_internal() {
-        assert_eq!(run_open_mls(), "Hi Bob. How are you!. I'm Alice...");
+        run_open_mls();
     }
     /* #[test]
      // already tested, no need to test the protocol
