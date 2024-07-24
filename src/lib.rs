@@ -35,6 +35,10 @@ functions in this library related to MLS
 
 6. Process Protocol Message
     - return the processed message (plain text)
+
+7. Process Protocol Message (Commit Message)
+    - commit the staged commit to the MLS group
+    - return the group as json
  */
 
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -225,6 +229,19 @@ fn mls_process_commit_message(mls_group_json_str: &str, serialized_commit_messag
     } else {
         panic!("Not an commit message")
     }
+}
+
+#[uniffi::export]
+fn mls_get_group_members(mls_group_json_str: &str) -> String {
+    let mls_group: MlsGroup = from_str(&mls_group_json_str).expect("unable to convert string to MLSGroup");
+
+    let mut members: Vec<String> = Vec::new();
+
+    for i in mls_group.members().into_iter() {
+        members.push(bytes_to_string(i.credential.serialized_content().to_vec()));
+    };
+
+    return serde_json::to_string(&members).expect("unable to convert Vec<String> to string");
 }
 
 
