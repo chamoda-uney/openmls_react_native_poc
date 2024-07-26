@@ -7,7 +7,7 @@ uniffi::setup_scaffolding!();
 use openmls::prelude::*;
 use openmls::prelude::tls_codec::*;
 use serde_json;
-use serde_json::from_str;
+use serde_json::{from_str, to_string};
 use crate::helpers::{bytes_to_string, generate_credential, generate_key_package};
 use crate::openmls_rust_persistent_crypto::OpenMlsRustPersistentCrypto;
 use crate::structs::{InvitedMemberData, RegisteredUserData};
@@ -78,7 +78,7 @@ fn mls_register_user(user_id: &str) -> String {
         credential_with_key,
     };
 
-    let serialized = serde_json::to_string(&registered_user_data).expect("unable to convert RegisteredUserData to string");
+    let serialized = to_string(&registered_user_data).expect("unable to convert RegisteredUserData to string");
 
     provider.save_keystore(); //saving the keystore for future use (note, this is expiring in 3 months)
 
@@ -99,7 +99,7 @@ fn mls_create_group(group_id: &str, registered_user_data_json_str: &str) -> Stri
                                                 registered_user_data.credential_with_key).expect("unexpected error occurred in creating group");
 
 
-    let serialized = serde_json::to_string(&mls_group).expect("unable to convert MLSGroup to string");
+    let serialized = to_string(&mls_group).expect("unable to convert MLSGroup to string");
     return serialized;
 }
 
@@ -123,7 +123,7 @@ fn mls_invite_member(registered_user_data_json_str: &str, member_key_package_jso
         serialized_mls_message_out: mls_message_out.tls_serialize_detached().expect("error serializing mls_message_out"),
         mls_group,
     };
-    let serialized = serde_json::to_string(&invited_member_data).expect("unable to convert InvitedMemberData to string");
+    let serialized = to_string(&invited_member_data).expect("unable to convert InvitedMemberData to string");
     return serialized;
 }
 
@@ -154,7 +154,7 @@ fn mls_create_group_from_welcome(serialized_welcome_message_json_str: &str) -> S
         .expect("failed to create staged join").into_group(&provider)
         .expect("failed to create MLSGroup by welcome");
 
-    let serialized = serde_json::to_string(&mls_group).expect("unable to convert MLSGroup to string");
+    let serialized = to_string(&mls_group).expect("unable to convert MLSGroup to string");
     return serialized;
 }
 
@@ -169,7 +169,7 @@ fn mls_create_application_message(registered_user_data_json_str: &str, mls_group
         .create_message(&provider, &registered_user_data.signer, message.as_bytes())
         .expect("error creating application message");
 
-    let serialized = serde_json::to_string(&mls_message_out.to_bytes().expect("unable to serialize application message")).expect("unable to convert application MLSMessageOut Vec<u8> to string");
+    let serialized = to_string(&mls_message_out.tls_serialize_detached().expect("unable to serialize application message")).expect("unable to convert application MLSMessageOut Vec<u8> to string");
     return serialized;
 }
 #[uniffi::export]
@@ -224,7 +224,7 @@ fn mls_process_commit_message(mls_group_json_str: &str, serialized_commit_messag
         mls_group
             .merge_staged_commit(&provider, *staged_commit)
             .expect("Error merging staged commit.");
-        let serialized = serde_json::to_string(&mls_group).expect("unable to convert MLSGroup to string");
+        let serialized = to_string(&mls_group).expect("unable to convert MLSGroup to string");
         return serialized;
     } else {
         panic!("Not an commit message")
@@ -241,7 +241,7 @@ fn mls_get_group_members(mls_group_json_str: &str) -> String {
         members.push(bytes_to_string(i.credential.serialized_content().to_vec()));
     };
 
-    return serde_json::to_string(&members).expect("unable to convert Vec<String> to string");
+    return to_string(&members).expect("unable to convert Vec<String> to string");
 }
 
 
@@ -347,7 +347,7 @@ fn run_open_mls() {
 
 
     //Bob process the message
-    let serialized_application_message = mls_message_out.to_bytes().expect("unable to serialize application message");
+    let serialized_application_message = mls_message_out.tls_serialize_detached().expect("unable to serialize application message");
     let mls_message_in =
         MlsMessageIn::tls_deserialize_exact(serialized_application_message).expect("could not deserialize message.");
 
@@ -378,7 +378,7 @@ fn run_open_mls() {
 
 
     //alice inspect the new commit message (charlie added commit) and merge the commit
-    let serialized_commit_message = mls_message_out_for_other_group_members.to_bytes().expect("unable to serialize commit message");
+    let serialized_commit_message = mls_message_out_for_other_group_members.tls_serialize_detached().expect("unable to serialize commit message");
     let mls_commit_message_in =
         MlsMessageIn::tls_deserialize_exact(serialized_commit_message).expect("could not deserialize message.");
     let protocol_commit_message: ProtocolMessage = mls_commit_message_in.try_into_protocol_message().expect("unable to convert to protocol message.");
@@ -432,7 +432,7 @@ fn run_open_mls() {
 
     //other group members access the message
     //Group serializes the message
-    let serialized_group_application_message = bob_mls_message_out.to_bytes().expect("unable to serialize application message");
+    let serialized_group_application_message = bob_mls_message_out.tls_serialize_detached().expect("unable to serialize application message");
     let group_mls_message_in =
         MlsMessageIn::tls_deserialize_exact(serialized_group_application_message).expect("could not deserialize message.");
 
