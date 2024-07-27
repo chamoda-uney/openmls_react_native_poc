@@ -467,52 +467,120 @@ fn run_open_mls() {
     }
 }
 
+fn run_exported_functions() {
+    struct Client {
+        file_path: String,
+        name: String,
+        registered_user_data: String,
+        mls_group: String,
+        key_package: String,
+    }
+
+    impl Client {
+        pub fn extract_key_package(&mut self) {
+            let rud: RegisteredUserData = from_str(&self.registered_user_data).expect("unable to deserialize RegisteredUserData");
+            self.key_package = to_string(&rud.key_package).expect("unable to serialize KeyPackage");
+        }
+    }
+
+    let mut alice = Client {
+        file_path: "target/alice.json".to_string(),
+        name: "Alice".to_string(),
+        registered_user_data: "".to_string(),
+        mls_group: "".to_string(),
+        key_package: "".to_string(),
+    };
+
+    let mut bob = Client {
+        file_path: "target/bob.json".to_string(),
+        name: "Bob".to_string(),
+        registered_user_data: "".to_string(),
+        mls_group: "".to_string(),
+        key_package: "".to_string(),
+    };
+
+    let mut charlie = Client {
+        file_path: "target/charlie.json".to_string(),
+        name: "Charlie".to_string(),
+        registered_user_data: "".to_string(),
+        mls_group: "".to_string(),
+        key_package: "".to_string(),
+    };
+
+    //register 3 users (this will create files in target/alice.json, target/bob.json and target/charlie.json)
+    mls_init(alice.file_path.clone());
+    alice.registered_user_data = mls_register_user(alice.name.as_str());
+    alice.extract_key_package();
+
+    mls_init(bob.file_path.clone());
+    bob.registered_user_data = mls_register_user(bob.name.as_str());
+    bob.extract_key_package();
+
+    mls_init(charlie.file_path.clone());
+    charlie.registered_user_data = mls_register_user(bob.name.as_str());
+    charlie.extract_key_package();
+
+
+    //---ALICE---
+    mls_init(alice.file_path.clone());
+    //alice create group
+    alice.mls_group = mls_create_group("hello", alice.registered_user_data.as_str());
+
+    //alice invite bob
+    let alice_invited_bob_data: InvitedMemberData = from_str(&mls_invite_member(&*alice.registered_user_data, &*bob.key_package, &alice.mls_group)).unwrap();
+    //update the alice's group
+    alice.mls_group = to_string(&alice_invited_bob_data.mls_group).unwrap();
+
+
+    //---BOB---
+    mls_init(bob.file_path.clone());
+    //now bob, imaging bob get json messages (serialized welcome out from delivery service), and process it to create a group from welcome
+    let bobs_welcome_message_received_from_ds = to_string(&alice_invited_bob_data.serialized_welcome_out).unwrap();
+    bob.mls_group = mls_create_group_from_welcome(bobs_welcome_message_received_from_ds.as_str());
+
+    //Now Alice and Bob are in Group. Let's send a message to Bob from Alice.
+
+    //---ALICE---
+    mls_init(alice.file_path.clone());
+    let serialized_application_message_for_bob = mls_create_application_message(alice.registered_user_data.as_str(), alice.mls_group.as_str(), "hi bob");
+
+
+    //---BOB---
+    mls_init(bob.file_path.clone());
+    //bob received the serialized application message from DS, (JSON format)
+    let bobs_message = mls_process_application_message(bob.mls_group.as_str(), serialized_application_message_for_bob.as_str());
+    assert_eq!(bobs_message, "hi bob");
+
+
+    //now let's invite charlie to the group. (bob invite charlie)
+    mls_init(bob.file_path.clone());
+    let bob_invited_charlie_data: InvitedMemberData = from_str(&mls_invite_member(&*bob.registered_user_data, &*charlie.key_package, &bob.mls_group)).unwrap();
+
+    //--CHARLIE--
+    mls_init(charlie.file_path.clone());
+    //now charlie, imaging charlie get json messages (serialized welcome out from delivery service), and process it to create a group from welcome
+    let charlies_welcome_message_received_from_ds = to_string(&bob_invited_charlie_data.serialized_welcome_out).unwrap();
+    charlie.mls_group = mls_create_group_from_welcome(charlies_welcome_message_received_from_ds.as_str());
+
+
+    //--ALICE---
+    //now alice have to process the commit message of adding charlie to the group
+    mls_init(alice.file_path.clone());
+    let alices_commit_message_received_from_ds = to_string(&bob_invited_charlie_data.serialized_mls_message_out).unwrap();
+    alice.mls_group = mls_process_commit_message(alice.mls_group.as_str(), alices_commit_message_received_from_ds.as_str());
+    //this is where error happens
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{run_open_mls};
+    use crate::{run_exported_functions, run_open_mls};
     #[test]
     fn open_mls_internal() {
         run_open_mls();
     }
-    /* #[test]
-     // already tested, no need to test the protocol
-     fn open_mls_api() {
-         const ALICE: &str = "Alice";
-         const BOB: &str = "Bob";
-         const ALICE_GROUP_ID: &str = "Alice_Group";
 
-         //register Alice
-         let alice_register_json_str = register_user(&ALICE);
-
-         //register Bob
-         let bob_register_json_str = register_user(&BOB);
-
-
-         //Alice create group
-         let created_group_by_alice = create_group(&ALICE_GROUP_ID, &alice_register_json_str);
-
-         //Alice invite Bob to Alice_Group
-         /*
-         Use a helper to extract Bob's key package from Bob's Register JSON data. Because, ALice needs Bob's Key Package to invite.
-         And assume Bob publish his key package to server, So alice can fetch it up.
-         Alice invite Bob to group
-          */
-         let bob_key_package = get_bobs_key_package_as_json_string(&bob_register_json_str); //Assume this was retrieved from the server
-
-         let alice_invited_bob_group_data = invite_member(&alice_register_json_str, &bob_key_package, &created_group_by_alice);
-
-         //Bob crate new group from Alice's welcome message
-         let serialized_welcome_message = get_serialized_welcome_message_out(&alice_invited_bob_group_data); // use the helper function to separate out the welcome message (delivered through DS)
-         //Bob join the group and create his own
-         let created_group_by_bob = create_group_from_welcome(&serialized_welcome_message);
-
-         //Alice create an Application Message in the newly updated (Bob Added) Group
-         let alice_updated_group = get_invite_updated_group(&alice_invited_bob_group_data);
-         let serialized_application_message_out = create_application_message(&alice_register_json_str, &alice_updated_group, "Hi Bob!!");
-
-         //Bob process the message in his group
-         let processed_message = process_application_message(&created_group_by_bob, &serialized_application_message_out);
-
-         assert_eq!(processed_message, "Hi Bob!!");
-     }*/
+    #[test]
+    fn run_open_mls_api() {
+        run_exported_functions();
+    }
 }
