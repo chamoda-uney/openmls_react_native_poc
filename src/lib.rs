@@ -145,7 +145,7 @@ fn mls_create_group_from_welcome(serialized_welcome_message_json_str: &str) {
     let group_config_join = MlsGroupJoinConfig::builder()
         .use_ratchet_tree_extension(true)
         .build();
-    let mls_group = StagedWelcome::new_from_welcome(
+    StagedWelcome::new_from_welcome(
         &provider,
         &group_config_join,
         welcome,

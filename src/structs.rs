@@ -1,7 +1,6 @@
 use openmls::credentials::CredentialWithKey;
 use openmls::key_packages::KeyPackage;
 use openmls_basic_credential::SignatureKeyPair;
-use openmls::prelude::*;
 
 #[derive(serde::Serialize)]
 #[derive(serde::Deserialize)]
