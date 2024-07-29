@@ -98,7 +98,6 @@ fn mls_create_group(group_id: &str, registered_user_data_json_str: &str) -> Stri
                                                 GroupId::from_slice(group_id.as_bytes()),
                                                 registered_user_data.credential_with_key).expect("unexpected error occurred in creating group");
 
-
     let serialized = to_string(&mls_group).expect("unable to convert MLSGroup to string");
     return serialized;
 }
