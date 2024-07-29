@@ -48,9 +48,5 @@ pub fn _get_serialized_welcome_message_out(invited_member_data_json_str: &str) -
     return to_string(&serialized_welcome_message_out).expect("TEST unable to convert serialized_welcome_message_out to string");
 }
 
-pub fn _get_invite_updated_group(invited_member_data_json_str: &str) -> String {
-    let invited_member_data: InvitedMemberData = from_str(&invited_member_data_json_str).expect("TEST unable to convert string to InvitedMemberData");
-    let group_with_new_state = invited_member_data.mls_group;
-    return to_string(&group_with_new_state).expect("TEST unable to convert group_with_new_state to string");
-}
+
 

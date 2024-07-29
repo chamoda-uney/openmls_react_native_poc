@@ -14,6 +14,5 @@ pub struct RegisteredUserData {
 #[derive(serde::Deserialize)]
 pub struct InvitedMemberData {
     pub serialized_welcome_out: Vec<u8>,
-    pub serialized_mls_message_out: Vec<u8>,
-    pub mls_group: MlsGroup,
+    pub serialized_mls_message_out: Vec<u8>
 }
