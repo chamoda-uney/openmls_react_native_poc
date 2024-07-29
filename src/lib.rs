@@ -230,8 +230,10 @@ fn mls_process_commit_message(group_id: &str, serialized_commit_message_json_str
 }
 
 #[uniffi::export]
-fn mls_get_group_members(mls_group_json_str: &str) -> String {
-    let mls_group: MlsGroup = from_str(&mls_group_json_str).expect("unable to convert string to MLSGroup");
+fn mls_get_group_members(group_id: &str) -> String {
+    let provider = get_provider();
+
+    let mut mls_group: MlsGroup = MlsGroup::load(provider.storage(), &GroupId::from_slice(group_id.as_bytes())).unwrap().expect("unable to load group");
 
     let mut members: Vec<String> = Vec::new();
 
