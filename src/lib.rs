@@ -88,6 +88,7 @@ fn mls_register_user(user_id: &str) -> String {
     return serialized;
 }
 
+#[uniffi::export]
 fn mls_create_keypackage(registered_user_data_json_str: &str) -> String {
     let provider = get_provider();
     let registered_user_data: RegisteredUserData = from_str(&registered_user_data_json_str).expect("unable to convert string to RegisteredUserData");
