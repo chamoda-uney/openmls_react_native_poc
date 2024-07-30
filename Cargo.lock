@@ -732,7 +732,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.6.0-pre.2"
-source = "git+https://github.com/openmls/openmls.git?branch=main#8c928e7bab64ba569a2bea9b88c92d3d43dc266b"
+source = "git+https://github.com/openmls/openmls.git?branch=main#7d797e996611fc7ad6ff1c8b2d23706acd772325"
 dependencies = [
  "log",
  "openmls_traits",
@@ -745,7 +745,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.3.0-pre.1"
-source = "git+https://github.com/openmls/openmls.git?branch=main#8c928e7bab64ba569a2bea9b88c92d3d43dc266b"
+source = "git+https://github.com/openmls/openmls.git?branch=main#7d797e996611fc7ad6ff1c8b2d23706acd772325"
 dependencies = [
  "ed25519-dalek",
  "openmls_traits",
@@ -758,7 +758,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.3.0-pre.2"
-source = "git+https://github.com/openmls/openmls.git?branch=main#8c928e7bab64ba569a2bea9b88c92d3d43dc266b"
+source = "git+https://github.com/openmls/openmls.git?branch=main#7d797e996611fc7ad6ff1c8b2d23706acd772325"
 dependencies = [
  "base64",
  "log",
@@ -785,7 +785,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.3.0-pre.1"
-source = "git+https://github.com/openmls/openmls.git?branch=main#8c928e7bab64ba569a2bea9b88c92d3d43dc266b"
+source = "git+https://github.com/openmls/openmls.git?branch=main#7d797e996611fc7ad6ff1c8b2d23706acd772325"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -809,7 +809,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.3.0-pre.2"
-source = "git+https://github.com/openmls/openmls.git?branch=main#8c928e7bab64ba569a2bea9b88c92d3d43dc266b"
+source = "git+https://github.com/openmls/openmls.git?branch=main#7d797e996611fc7ad6ff1c8b2d23706acd772325"
 dependencies = [
  "serde",
  "tls_codec",
@@ -1064,11 +1064,12 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.120"
+version = "1.0.121"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
+checksum = "4ab380d7d9f22ef3f21ad3e6c1ebe8e4fc7a2000ccba2e4d71fc96f15b2cb609"
 dependencies = [
  "itoa",
+ "memchr",
  "ryu",
  "serde",
 ]

@@ -4,8 +4,10 @@ mod openmls_rust_persistent_crypto;
 
 uniffi::setup_scaffolding!();
 
+use std::{fs, io};
 use openmls::prelude::*;
 use openmls::prelude::tls_codec::*;
+use openmls_traits::storage::StorageProvider;
 use serde_json;
 use serde_json::{from_str, to_string};
 use crate::helpers::{bytes_to_string, generate_credential, generate_key_package};
@@ -72,6 +74,8 @@ fn mls_register_user(user_id: &str) -> String {
                                                   credential_with_key.clone());
     let key_package = key_package_bundle.key_package().clone();
 
+    signer.store(provider.storage()).unwrap();
+
     let registered_user_data = RegisteredUserData {
         key_package,
         signer,
@@ -81,7 +85,20 @@ fn mls_register_user(user_id: &str) -> String {
     let serialized = to_string(&registered_user_data).expect("unable to convert RegisteredUserData to string");
 
     provider.save_keystore(); //saving the keystore for future use (note, this is expiring in 3 months)
+    return serialized;
+}
 
+fn mls_create_keypackage(registered_user_data_json_str: &str) -> String {
+    let provider = get_provider();
+    let registered_user_data: RegisteredUserData = from_str(&registered_user_data_json_str).expect("unable to convert string to RegisteredUserData");
+
+    let key_package_bundle = generate_key_package(CIPHERSUITE,
+                                                  &provider,
+                                                  &registered_user_data.signer,
+                                                  registered_user_data.credential_with_key.clone());
+    let key_package = key_package_bundle.key_package().clone();
+    let serialized = to_string(&key_package).expect("unable to convert KeyPackage to string");
+    provider.save_keystore();
     return serialized;
 }
 #[uniffi::export]
@@ -145,7 +162,7 @@ fn mls_create_group_from_welcome(serialized_welcome_message_json_str: &str) {
     let group_config_join = MlsGroupJoinConfig::builder()
         .use_ratchet_tree_extension(true)
         .build();
-    StagedWelcome::new_from_welcome(
+    let mut mls_group = StagedWelcome::new_from_welcome(
         &provider,
         &group_config_join,
         welcome,
@@ -153,6 +170,9 @@ fn mls_create_group_from_welcome(serialized_welcome_message_json_str: &str) {
     )
         .expect("failed to create staged join").into_group(&provider)
         .expect("failed to create MLSGroup by welcome");
+
+    //merge pending commit
+    mls_group.merge_pending_commit(&provider).expect("error merging pending commit");
 
     provider.save_keystore();
 }
@@ -223,6 +243,7 @@ fn mls_process_commit_message(group_id: &str, serialized_commit_message_json_str
         mls_group
             .merge_staged_commit(&provider, *staged_commit)
             .expect("Error merging staged commit.");
+        mls_group.merge_pending_commit(&provider).expect("error merging pending commit");
         provider.save_keystore();
     } else {
         panic!("Not an commit message")
@@ -233,7 +254,7 @@ fn mls_process_commit_message(group_id: &str, serialized_commit_message_json_str
 fn mls_get_group_members(group_id: &str) -> String {
     let provider = get_provider();
 
-    let mut mls_group: MlsGroup = MlsGroup::load(provider.storage(), &GroupId::from_slice(group_id.as_bytes())).unwrap().expect("unable to load group");
+    let mls_group: MlsGroup = MlsGroup::load(provider.storage(), &GroupId::from_slice(group_id.as_bytes())).unwrap().expect("unable to load group");
 
     let mut members: Vec<String> = Vec::new();
 
@@ -296,7 +317,7 @@ fn run_open_mls() {
         .build();
     let mut alice_group = MlsGroup::new(provider_alice, &alice_signer,
                                         &group_config_create,
-                                        alice_credential_with_key).expect("unexpected error occurred in creating group");
+                                        alice_credential_with_key.clone()).expect("unexpected error occurred in creating group");
 
 
     //alice invites bob
@@ -503,6 +524,11 @@ fn run_exported_functions() {
         key_package: "".to_string(),
     };
 
+    //delete the previous storage files (to simulate new client at first)
+    fs::remove_file(alice.file_path.clone()).ok();
+    fs::remove_file(bob.file_path.clone()).ok();
+    fs::remove_file(charlie.file_path.clone()).ok();
+
     let group_id = "hello";
 
     //register 3 users (this will create files in target/alice.json, target/bob.json and target/charlie.json)
@@ -533,6 +559,7 @@ fn run_exported_functions() {
     //now bob, imaging bob get json messages (serialized welcome out from delivery service), and process it to create a group from welcome
     let bobs_welcome_message_received_from_ds = to_string(&alice_invited_bob_data.serialized_welcome_out).unwrap();
     mls_create_group_from_welcome(bobs_welcome_message_received_from_ds.as_str());
+    bob.key_package = mls_create_keypackage(&bob.registered_user_data);
 
     //Now Alice and Bob are in Group. Let's send a message to Bob from Alice.
 
@@ -557,6 +584,7 @@ fn run_exported_functions() {
     //now charlie, imaging charlie get json messages (serialized welcome out from delivery service), and process it to create a group from welcome
     let charlies_welcome_message_received_from_ds = to_string(&bob_invited_charlie_data.serialized_welcome_out).unwrap();
     mls_create_group_from_welcome(charlies_welcome_message_received_from_ds.as_str());
+    charlie.key_package = mls_create_keypackage(&charlie.registered_user_data);
 
 
     //--ALICE---
@@ -581,6 +609,75 @@ fn run_exported_functions() {
     mls_init(bob.file_path.clone());
     //bob received the serialized application message from DS, (JSON format)
     assert_eq!(mls_process_application_message(&group_id, serialized_application_message_for_group.as_str()), "Hi group!. I'm charlie");
+
+    // ---creating second group---
+    let group_id_2 = "hello_2";
+    //---ALICE---
+    mls_init(alice.file_path.clone());
+    //alice create group
+    mls_create_group(&group_id_2, alice.registered_user_data.as_str());
+    //alice invite bob
+    mls_init(alice.file_path.clone());
+    let alice_invited_bob_data_group_id_2: InvitedMemberData = from_str(&mls_invite_member(&*alice.registered_user_data, &*bob.key_package, &group_id_2)).unwrap();
+
+
+    //---BOB---
+    mls_init(bob.file_path.clone());
+    //now bob, imaging bob get json messages (serialized welcome out from delivery service), and process it to create a group from welcome
+    let bobs_welcome_message_received_from_ds_group_id_2 = to_string(&alice_invited_bob_data_group_id_2.serialized_welcome_out).unwrap();
+    mls_create_group_from_welcome(bobs_welcome_message_received_from_ds_group_id_2.as_str());
+    bob.key_package = mls_create_keypackage(&bob.registered_user_data);
+
+    //now bob invite charlie also
+    let bob_invited_charlie_data_group_id_2: InvitedMemberData = from_str(&mls_invite_member(&*bob.registered_user_data, &*charlie.key_package, &group_id_2)).unwrap();
+
+    //--CHARLIE--
+    //now charlie join the group
+    mls_init(charlie.file_path.clone());
+    let charlies_welcome_message_received_from_ds_group_id_2 = to_string(&bob_invited_charlie_data_group_id_2.serialized_welcome_out).unwrap();
+    mls_create_group_from_welcome(charlies_welcome_message_received_from_ds_group_id_2.as_str());
+    charlie.key_package = mls_create_keypackage(&charlie.registered_user_data);
+
+    //--ALICE--
+    //now alice has to process the commit message sent by charlie
+    mls_init(alice.file_path.clone());
+    let charlie_added_commit_received_from_ds_group_id_2 = to_string(&bob_invited_charlie_data_group_id_2.serialized_mls_message_out).unwrap();
+    mls_process_commit_message(&group_id_2, charlie_added_commit_received_from_ds_group_id_2.as_str());
+
+
+    //now all are in group 3, Bob send a message to group 3
+    mls_init(bob.file_path.clone());
+    let serialized_application_message_for_group_id_2 = mls_create_application_message(bob.registered_user_data.as_str(), "Hi group 2!. What's up", &group_id_2);
+
+    //--ALICE---
+    //now alice consume the message
+    mls_init(alice.file_path.clone());
+    //alice received the serialized application message from DS, (JSON format)
+    assert_eq!(mls_process_application_message(&group_id_2, serialized_application_message_for_group_id_2.as_str()), "Hi group 2!. What's up");
+
+    //--CHARLIE---
+    //now charlie consume the message
+    mls_init(charlie.file_path.clone());
+    //alice received the serialized application message from DS, (JSON format)
+    assert_eq!(mls_process_application_message(&group_id_2, serialized_application_message_for_group_id_2.as_str()), "Hi group 2!. What's up");
+
+
+    //let's send messages to first group they created
+    //now all are in group 3, Bob send a message to group 3
+    mls_init(bob.file_path.clone());
+    let serialized_application_message_for_group_id_1 = mls_create_application_message(bob.registered_user_data.as_str(), "Hi group 1!. What's up", &group_id);
+
+    //--ALICE---
+    //now alice consume the message
+    mls_init(alice.file_path.clone());
+    //alice received the serialized application message from DS, (JSON format)
+    assert_eq!(mls_process_application_message(&group_id, serialized_application_message_for_group_id_1.as_str()), "Hi group 1!. What's up");
+
+    //--CHARLIE---
+    //now charlie consume the message
+    mls_init(charlie.file_path.clone());
+    //alice received the serialized application message from DS, (JSON format)
+    assert_eq!(mls_process_application_message(&group_id, serialized_application_message_for_group_id_1.as_str()), "Hi group 1!. What's up");
 }
 
 #[cfg(test)]
@@ -590,7 +687,6 @@ mod tests {
     fn open_mls_internal() {
         run_open_mls();
     }
-
     #[test]
     fn run_open_mls_api() {
         run_exported_functions();
